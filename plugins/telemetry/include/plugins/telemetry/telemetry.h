@@ -125,6 +125,8 @@ public:
         int num_satellites; /**< @brief Number of visible satellites used for solution. */
         int fix_type; /**< @brief Fix type (0: no GPS, 1: no fix, 2: 2D fix, 3: 3D fix, 4: DGPS fix,
                                      5: RTK float, 6: RTK fixed). */
+        int vdop;
+        int hdop;
     };
 
     /**
@@ -151,6 +153,9 @@ public:
         LAND, /**< @brief Landing. */
         OFFBOARD, /**< @brief Offboard mode. */
         FOLLOW_ME, /**< @brief FollowMe mode. */
+        ALTCTL,
+        POSCTL,
+        STABILIZED,
         UNKNOWN /**< @brief Mode not known. */
     };
 
@@ -693,6 +698,10 @@ public:
      * @param callback Function to call with updates.
      */
     void rc_status_async(rc_status_callback_t callback);
+
+    typedef std::function<void(uint16_t)> estimator_flags_callback_t;
+
+    void estimator_flags_async(estimator_flags_callback_t callback);
 
     /**
      * @brief Copy constructor (object is not copyable).

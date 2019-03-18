@@ -160,6 +160,33 @@ void OffboardImpl::set_velocity_body(Offboard::VelocityBodyYawspeed velocity_bod
     send_velocity_body();
 }
 
+void OffboardImpl::set_position_target_local_ned(Offboard::PositionTargetLocalNED const& setpoint)
+{
+  _mutex.lock();
+  _setpoint = setpoint;
+
+  if (_mode != Mode::SETPOINT) {
+      if (_call_every_cookie) {
+          // If we're already sending other setpoints, stop that now.
+          _parent->remove_call_every(_call_every_cookie);
+          _call_every_cookie = nullptr;
+      }
+      // We automatically send NED setpoints from now on.
+      _parent->add_call_every(
+          [this]() { send_position_target_local_ned(); }, SEND_INTERVAL_S, &_call_every_cookie);
+
+      _mode = Mode::SETPOINT;
+  } else {
+      // We're already sending these kind of setpoints. Since the setpoint change, let's
+      // reschedule the next call, so we don't send setpoints too often.
+      _parent->reset_call_every(_call_every_cookie);
+  }
+  _mutex.unlock();
+
+  // also send it right now to reduce latency
+  send_position_target_local_ned();
+}
+
 void OffboardImpl::send_velocity_ned()
 {
     const static uint16_t IGNORE_X = (1 << 0);
@@ -264,6 +291,36 @@ void OffboardImpl::send_velocity_body()
         yaw,
         yaw_rate);
     _parent->send_message(message);
+}
+
+void OffboardImpl::send_position_target_local_ned()
+{
+  _mutex.lock();
+  auto setpoint = _setpoint;
+  _mutex.unlock();
+
+  mavlink_message_t message;
+  mavlink_msg_set_position_target_local_ned_pack(
+      GCSClient::system_id,
+      GCSClient::component_id,
+      &message,
+      static_cast<uint32_t>(_parent->get_time().elapsed_s() * 1e3),
+      _parent->get_system_id(),
+      _parent->get_autopilot_id(),
+      setpoint.coordFrame,
+      setpoint.typeMask,
+      setpoint.x,
+      setpoint.y,
+      setpoint.z,
+      setpoint.vx,
+      setpoint.vy,
+      setpoint.vz,
+      setpoint.afx,
+      setpoint.afy,
+      setpoint.afz,
+      setpoint.yaw,
+      setpoint.yawRate);
+  _parent->send_message(message);
 }
 
 void OffboardImpl::process_heartbeat(const mavlink_message_t &message)

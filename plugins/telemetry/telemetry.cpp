@@ -275,6 +275,12 @@ std::string Telemetry::flight_mode_str(FlightMode flight_mode)
             return "Offboard";
         case FlightMode::FOLLOW_ME:
             return "FollowMe";
+        case FlightMode::ALTCTL:
+            return "Altitude Control";
+        case FlightMode::POSCTL:
+            return "Position Control";
+        case FlightMode::STABILIZED:
+            return "Stabilized";
         case FlightMode::UNKNOWN:
         default:
             return "Unknown";
@@ -294,6 +300,11 @@ void Telemetry::health_all_ok_async(health_all_ok_callback_t callback)
 void Telemetry::rc_status_async(rc_status_callback_t callback)
 {
     return _impl->rc_status_async(callback);
+}
+
+void Telemetry::estimator_flags_async(estimator_flags_callback_t callback)
+{
+    return _impl->estimator_flags_async(callback);
 }
 
 const char *Telemetry::result_str(Result result)
@@ -377,12 +388,14 @@ std::ostream &operator<<(std::ostream &str, Telemetry::Health const &health)
 
 bool operator==(const Telemetry::GPSInfo &lhs, const Telemetry::GPSInfo &rhs)
 {
-    return lhs.num_satellites == rhs.num_satellites && lhs.fix_type == rhs.fix_type;
+    return lhs.num_satellites == rhs.num_satellites && lhs.fix_type == rhs.fix_type &&
+           lhs.vdop == rhs.vdop && lhs.hdop == rhs.hdop;
 }
 
 std::ostream &operator<<(std::ostream &str, Telemetry::GPSInfo const &gps_info)
 {
     return str << "[num_sat: " << gps_info.num_satellites << ", fix_type: " << gps_info.fix_type
+               << ", vdop: " << gps_info.vdop << ", hdop: " << gps_info.hdop
                << "]";
 }
 

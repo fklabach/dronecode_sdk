@@ -93,6 +93,22 @@ public:
                                  clock-wise looking from above). */
     };
 
+    struct PositionTargetLocalNED {
+      uint8_t coordFrame = 1;
+      uint16_t typeMask = 0x00;
+      float x = 0.0;
+      float y = 0.0;
+      float z = 0.0;
+      float vx = 0.0;
+      float vy = 0.0;
+      float vz = 0.0;
+      float afx = 0.0;
+      float afy = 0.0;
+      float afz = 0.0;
+      float yaw = 0.0;
+      float yawRate = 0.0;
+    };
+
     /**
      * @brief Start offboard control (synchronous).
      *
@@ -152,6 +168,8 @@ public:
      * @param velocity_body_yawspeed Velocity and yaw angular rate `struct`.
      */
     void set_velocity_body(VelocityBodyYawspeed velocity_body_yawspeed);
+
+    void set_position_target_local_ned(PositionTargetLocalNED const& setpoint);
 
     /**
      * @brief Copy constructor (object is not copyable).

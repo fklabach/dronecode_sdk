@@ -766,6 +766,15 @@ SystemImpl::make_command_flight_mode(FlightMode flight_mode, uint8_t component_i
         case FlightMode::OFFBOARD:
             custom_mode = px4::PX4_CUSTOM_MAIN_MODE_OFFBOARD;
             break;
+        case FlightMode::ALTCTL:
+            custom_mode = px4::PX4_CUSTOM_MAIN_MODE_ALTCTL;
+            break;
+        case FlightMode::POSCTL:
+            custom_mode = px4::PX4_CUSTOM_MAIN_MODE_POSCTL;
+            break;
+        case FlightMode::STABILIZED:
+            custom_mode = px4::PX4_CUSTOM_MAIN_MODE_STABILIZED;
+            break;
         default:
             LogErr() << "Unknown Flight mode.";
             MAVLinkCommands::CommandLong empty_command{};

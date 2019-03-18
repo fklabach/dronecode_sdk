@@ -23,7 +23,7 @@ TelemetryImpl::TelemetryImpl(System &system) :
     _ground_speed_ned_mutex(),
     _ground_speed_ned(Telemetry::GroundSpeedNED{NAN, NAN, NAN}),
     _gps_info_mutex(),
-    _gps_info(Telemetry::GPSInfo{0, 0}),
+    _gps_info(Telemetry::GPSInfo{0, 0, 0, 0}),
     _battery_mutex(),
     _battery(Telemetry::Battery{NAN, NAN}),
     _flight_mode_mutex(),
@@ -32,6 +32,8 @@ TelemetryImpl::TelemetryImpl(System &system) :
     _health(Telemetry::Health{false, false, false, false, false, false, false}),
     _rc_status_mutex(),
     _rc_status(Telemetry::RCStatus{false, false, 0.0f}),
+    _estimator_flags_mutex(),
+    _estimator_flags(0),
     _position_subscription(nullptr),
     _home_position_subscription(nullptr),
     _in_air_subscription(nullptr),
@@ -47,6 +49,7 @@ TelemetryImpl::TelemetryImpl(System &system) :
     _health_subscription(nullptr),
     _health_all_ok_subscription(nullptr),
     _rc_status_subscription(nullptr),
+    _estimator_flags_subscription(nullptr),
     _ground_speed_ned_rate_hz(0.0),
     _position_rate_hz(-1.0)
 {
@@ -103,6 +106,9 @@ void TelemetryImpl::init()
 
     _parent->register_mavlink_message_handler(
         MAVLINK_MSG_ID_RC_CHANNELS, std::bind(&TelemetryImpl::process_rc_channels, this, _1), this);
+
+    _parent->register_mavlink_message_handler(
+        MAVLINK_MSG_ID_ESTIMATOR_STATUS, std::bind(&TelemetryImpl::process_estimator_status, this, _1), this);
 }
 
 void TelemetryImpl::deinit()
@@ -442,7 +448,8 @@ void TelemetryImpl::process_gps_raw_int(const mavlink_message_t &message)
 {
     mavlink_gps_raw_int_t gps_raw_int;
     mavlink_msg_gps_raw_int_decode(&message, &gps_raw_int);
-    set_gps_info({gps_raw_int.satellites_visible, gps_raw_int.fix_type});
+    set_gps_info({gps_raw_int.satellites_visible, gps_raw_int.fix_type,
+                  gps_raw_int.epv, gps_raw_int.eph});
 
     // TODO: This is just an interim hack, we will have to look at
     //       estimator flags in order to decide if the position
@@ -536,6 +543,17 @@ void TelemetryImpl::process_rc_channels(const mavlink_message_t &message)
     _parent->refresh_timeout_handler(_timeout_cookie);
 }
 
+void TelemetryImpl::process_estimator_status(const mavlink_message_t &message)
+{
+  mavlink_estimator_status_t estimator_status;
+  mavlink_msg_estimator_status_decode(&message, &estimator_status);
+  set_estimator_flags(estimator_status.flags);
+
+  if (_estimator_flags_subscription) {
+      _estimator_flags_subscription(get_estimator_flags());
+  }
+}
+
 Telemetry::FlightMode TelemetryImpl::to_flight_mode_from_custom_mode(uint32_t custom_mode)
 {
     px4::px4_custom_mode px4_custom_mode;
@@ -544,6 +562,12 @@ Telemetry::FlightMode TelemetryImpl::to_flight_mode_from_custom_mode(uint32_t cu
     switch (px4_custom_mode.main_mode) {
         case px4::PX4_CUSTOM_MAIN_MODE_OFFBOARD:
             return Telemetry::FlightMode::OFFBOARD;
+        case px4::PX4_CUSTOM_MAIN_MODE_ALTCTL:
+            return Telemetry::FlightMode::ALTCTL;
+        case px4::PX4_CUSTOM_MAIN_MODE_POSCTL:
+            return Telemetry::FlightMode::POSCTL;
+        case px4::PX4_CUSTOM_MAIN_MODE_STABILIZED:
+            return Telemetry::FlightMode::STABILIZED;
         case px4::PX4_CUSTOM_MAIN_MODE_AUTO:
             switch (px4_custom_mode.sub_mode) {
                 case px4::PX4_CUSTOM_SUB_MODE_AUTO_READY:
@@ -809,6 +833,12 @@ Telemetry::RCStatus TelemetryImpl::get_rc_status() const
     return _rc_status;
 }
 
+uint16_t TelemetryImpl::get_estimator_flags() const
+{
+    std::lock_guard<std::mutex> lock(_estimator_flags_mutex);
+    return _estimator_flags;
+}
+
 void TelemetryImpl::set_health_local_position(bool ok)
 {
     std::lock_guard<std::mutex> lock(_health_mutex);
@@ -863,6 +893,12 @@ void TelemetryImpl::set_rc_status(bool available, float signal_strength_percent)
     }
 
     _rc_status.available = available;
+}
+
+void TelemetryImpl::set_estimator_flags(uint16_t flags)
+{
+    std::lock_guard<std::mutex> lock(_estimator_flags_mutex);
+    _estimator_flags = flags;
 }
 
 void TelemetryImpl::position_velocity_ned_async(
@@ -946,6 +982,11 @@ void TelemetryImpl::health_all_ok_async(Telemetry::health_all_ok_callback_t &cal
 void TelemetryImpl::rc_status_async(Telemetry::rc_status_callback_t &callback)
 {
     _rc_status_subscription = callback;
+}
+
+void TelemetryImpl::estimator_flags_async(Telemetry::estimator_flags_callback_t callback)
+{
+  _estimator_flags_subscription = callback;
 }
 
 } // namespace dronecode_sdk
